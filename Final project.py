@@ -225,5 +225,40 @@ def delete_borrowing():
     execute_query(conn, query, (borrowing_id,))
     return make_response(jsonify({"message": "Borrowing record deleted successfully"}), 200)
 
+# Updating a borrowing record with the return date
+@app.route('/api/borrowings/update', methods=['PUT'])
+def update_borrowing():
+    data = request.get_json()
+    borrowing_id = data.get('id')
+    returndate_str = data.get('returndate')  # expected format: YYYY-MM-DD
+    if not (borrowing_id and returndate_str):
+        return make_response(jsonify({"message": "id and returndate are required"}), 400)
+    try:
+        returndate = datetime.strptime(returndate_str, '%Y-%m-%d').date()
+    except Exception:
+        return make_response(jsonify({"message": "Invalid returndate format; use YYYY-MM-DD"}), 400)
+    # Retrieve the borrowing record
+    query_get = f"SELECT * FROM borrowingrecords WHERE id = {borrowing_id}"
+    records = execute_read_query(conn, query_get)
+    if not records:
+        return make_response(jsonify({"message": "Borrowing record not found"}), 404)
+    record = records[0]
+    if record['returndate'] is not None:
+        return make_response(jsonify({"message": "Return date already set"}), 400)
+    # Calculate late fee: $1 per day for days over 10
+    borrowdate = record['borrowdate']
+    if isinstance(borrowdate, str):
+        borrowdate = datetime.strptime(borrowdate, '%Y-%m-%d').date()
+    days_diff = (returndate - borrowdate).days
+    late_fee = days_diff - 10 if days_diff > 10 else 0
+    # Update the borrowing record with the return date and late fee
+    query_update = "UPDATE borrowingrecords SET returndate = %s, late_fee = %s WHERE id = %s"
+    values = (returndate, late_fee, borrowing_id)
+    execute_query(conn, query_update, values)
+    # Update the book status back to 'available'
+    query_book_update = "UPDATE books SET status = 'available' WHERE id = %s"
+    execute_query(conn, query_book_update, (record['bookid'],))
+    return make_response(jsonify({"message": "Borrowing record updated successfully", "late_fee": late_fee}), 200)
+
 
 app.run()
