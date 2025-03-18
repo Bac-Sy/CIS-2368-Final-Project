@@ -31,5 +31,11 @@ def add_book():
     execute_query(conn, query, values)
     return make_response(jsonify({"message": "Book added successfully"}), 200)
 
+# Shows all books in the database
+@app.route('/api/books/inventory', methods=['GET'])
+def list_books():
+    query = "SELECT * FROM books"
+    books = execute_read_query(conn, query)
+    return jsonify(books)
 
 app.run()
