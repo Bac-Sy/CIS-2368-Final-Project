@@ -9,9 +9,46 @@ from sql import create_connection, execute_query, execute_read_query
 myCreds = creds.creds()
 conn = create_connection(myCreds.constring, myCreds.user, myCreds.password, myCreds.database)
 
+create_books_table = """
+  CREATE TABLE IF NOT EXISTS books (
+      id INT AUTO_INCREMENT,
+      title VARCHAR(255) NOT NULL,
+      author VARCHAR(255) NOT NULL,
+      genre VARCHAR(100) NOT NULL,
+      status VARCHAR(20) NOT NULL,
+      PRIMARY KEY (id)
+  )
+  """
+ 
+create_customers_table = """
+ CREATE TABLE IF NOT EXISTS customers (
+     id INT AUTO_INCREMENT,
+     firstname VARCHAR(100) NOT NULL,
+     lastname VARCHAR(100) NOT NULL,
+     email VARCHAR(255) NOT NULL UNIQUE,
+     passwordhash CHAR(64) NOT NULL,
+     PRIMARY KEY (id)
+ )
+ """
+ 
+create_borrowingrecords_table = """
+  CREATE TABLE IF NOT EXISTS borrowingrecords (
+      id INT AUTO_INCREMENT,
+      bookid INT NOT NULL,
+      customerid INT NOT NULL,
+      borrowdate DATE NOT NULL,
+      returndate DATE,
+      late_fee INT DEFAULT 0,
+      FOREIGN KEY (bookid) REFERENCES books(id),
+      FOREIGN KEY (customerid) REFERENCES customers(id),
+      PRIMARY KEY (id)
+  )
+  """
+
 #setting up an application name
 app = flask.Flask(__name__) # sets up the app
 app.config["DEBUG"] = True # allow to show errors in the browser
+
 
 
 @app.route('/api/books/add', methods=['POST'])
@@ -132,5 +169,61 @@ def update_customer():
     values.append(customer_id)
     execute_query(conn, query, tuple(values))
     return make_response(jsonify({"message": "Customer updated successfully"}), 200)
+
+# Adding a new borrowing record
+@app.route('/api/borrowings/add', methods=['POST'])
+def add_borrowing():
+    data = request.get_json()
+    book_id = data.get('bookid')
+    customer_id = data.get('customerid')
+    borrowdate_str = data.get('borrowdate')  # expected format: YYYY-MM-DD
+    if not (book_id and customer_id and borrowdate_str):
+        return make_response(jsonify({"message": "bookid, customerid, and borrowdate are required"}), 400)
+    try:
+        borrowdate = datetime.strptime(borrowdate_str, '%Y-%m-%d').date()
+    except Exception:
+        return make_response(jsonify({"message": "Invalid borrowdate format; use YYYY-MM-DD"}), 400)
+    # Check if the book exists and is available
+    query_book = f"SELECT * FROM books WHERE id = {book_id}"
+    book = execute_read_query(conn, query_book)
+    if not book:
+        return make_response(jsonify({"message": "Book not found"}), 404)
+    if book[0]['status'].lower() != 'available':
+        return make_response(jsonify({"message": "Book is not available"}), 400)
+    # Check if the customer already has an active borrowing
+    query_active = f"SELECT * FROM borrowingrecords WHERE customerid = {customer_id} AND returndate IS NULL"
+    active = execute_read_query(conn, query_active)
+    if active:
+        return make_response(jsonify({"message": "Customer already has a borrowed book"}), 400)
+    # Insert new borrowing record
+    query = """
+    INSERT INTO borrowingrecords (bookid, customerid, borrowdate)
+    VALUES (%s, %s, %s)
+    """
+    values = (book_id, customer_id, borrowdate)
+    execute_query(conn, query, values)
+    # Update the book status to 'unavailable'
+    query_update = "UPDATE books SET status = 'unavailable' WHERE id = %s"
+    execute_query(conn, query_update, (book_id,))
+    return make_response(jsonify({"message": "Borrowing record added successfully"}), 200)
+
+# Listing all borrowing records
+@app.route('/api/borrowings/inventory', methods=['GET'])
+def list_borrowings():
+    query = "SELECT * FROM borrowingrecords"
+    records = execute_read_query(conn, query)
+    return jsonify(records)
+
+# Deleting a borrowing record
+@app.route('/api/borrowings/delete', methods=['DELETE'])
+def delete_borrowing():
+    data = request.get_json()
+    borrowing_id = data.get('id')
+    if not borrowing_id:
+        return make_response(jsonify({"message": "Borrowing record id is required"}), 400)
+    query = "DELETE FROM borrowingrecords WHERE id = %s"
+    execute_query(conn, query, (borrowing_id,))
+    return make_response(jsonify({"message": "Borrowing record deleted successfully"}), 200)
+
 
 app.run()
