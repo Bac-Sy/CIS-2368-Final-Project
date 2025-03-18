@@ -37,22 +37,26 @@ def list_books():
     books = execute_read_query(conn, query)
     return jsonify(books)
 
-# Updates the book by ID
 @app.route('/api/books/update', methods=['PUT'])
-def update_book_status():
+def update_book():
     data = request.get_json()
     book_id = data.get('id')
-    new_status = data.get('status')
-    
-    # Validate required fields
-    if not book_id or new_status is None:
-        return make_response(jsonify({"message": "Both 'id' and 'status' are required"}), 400)
-    
-    query = "UPDATE books SET status = %s WHERE id = %s"
-    values = (new_status.lower(), book_id)
-    
+    if not book_id:
+        return make_response(jsonify({"message": "Book ID is required"}), 400)
+    query = """
+    UPDATE books
+    SET title = %s, author = %s, genre = %s, status = %s
+    WHERE id = %s
+    """
+    values = (
+        data['title'],
+        data['author'],
+        data['genre'],
+        data['status'],
+        book_id
+    )
     execute_query(conn, query, values)
-    return make_response(jsonify({"message": "Book status updated successfully"}), 200)
+    return make_response(jsonify({"message": "Book updated successfully"}), 200)
 
 # Deletes a book by ID
 @app.route('/api/books/delete', methods=['DELETE'])
@@ -105,5 +109,28 @@ def delete_customer():
     query = "DELETE FROM customers WHERE id = %s"
     execute_query(conn, query, (customer_id,))
     return make_response(jsonify({"message": "Customer deleted successfully"}), 200)
+
+# Updates a customer's information
+@app.route('/api/customers/update', methods=['PUT'])
+def update_customer():
+    data = request.get_json()
+    customer_id = data.get('id')
+    if not customer_id:
+        return make_response(jsonify({"message": "Customer ID is required"}), 400)
+    query = "UPDATE customers SET firstname = %s, lastname = %s, email = %s"
+    values = [
+        data['firstname'],
+        data['lastname'],
+        data['email']
+    ]
+    # If a new password is provided, hash and update it
+    if data.get('password'):
+        passwordhash = hashlib.sha256(data.get('password').encode()).hexdigest()
+        query += ", passwordhash = %s"
+        values.append(passwordhash)
+    query += " WHERE id = %s"
+    values.append(customer_id)
+    execute_query(conn, query, tuple(values))
+    return make_response(jsonify({"message": "Customer updated successfully"}), 200)
 
 app.run()
