@@ -95,6 +95,15 @@ def list_customers():
     customers = execute_read_query(conn, query)
     return jsonify(customers)
 
-
+# Deletes a customer by ID
+@app.route('/api/customers/delete', methods=['DELETE'])
+def delete_customer():
+    data = request.get_json()
+    customer_id = data.get('id')
+    if not customer_id:
+        return make_response(jsonify({"message": "Customer ID is required"}), 400)
+    query = "DELETE FROM customers WHERE id = %s"
+    execute_query(conn, query, (customer_id,))
+    return make_response(jsonify({"message": "Customer deleted successfully"}), 200)
 
 app.run()
