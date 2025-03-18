@@ -65,4 +65,29 @@ def delete_book():
     execute_query(conn, query, (book_id,))
     return make_response(jsonify({"message": "Book deleted successfully"}), 200)
 
+# Adds a new customer to the database
+@app.route('/api/customers/add', methods=['POST'])
+def add_customer():
+    new_customer = request.get_json()
+    password = new_customer.get('password')
+    if not password:
+        return make_response(jsonify({"message": "Password is required"}), 400)
+    
+    # Hash the password before storing it in the database
+    passwordhash = hashlib.sha256(password.encode()).hexdigest()
+    query = """
+    INSERT INTO customers (firstname, lastname, email, passwordhash)
+    VALUES (%s, %s, %s, %s)
+    """
+    values = (
+        new_customer['firstname'],
+        new_customer['lastname'],
+        new_customer['email'],
+        passwordhash
+    )
+    execute_query(conn, query, values)
+    return make_response(jsonify({"message": "Customer added successfully"}), 200)
+
+
+
 app.run()
