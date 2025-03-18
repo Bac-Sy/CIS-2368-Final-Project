@@ -54,5 +54,15 @@ def update_book_status():
     execute_query(conn, query, values)
     return make_response(jsonify({"message": "Book status updated successfully"}), 200)
 
+# Deletes a book by ID
+@app.route('/api/books/delete', methods=['DELETE'])
+def delete_book():
+    data = request.get_json()
+    book_id = data.get('id')
+    if not book_id:
+        return make_response(jsonify({"message": "Book ID is required"}), 400)
+    query = "DELETE FROM books WHERE id = %s"
+    execute_query(conn, query, (book_id,))
+    return make_response(jsonify({"message": "Book deleted successfully"}), 200)
 
 app.run()
