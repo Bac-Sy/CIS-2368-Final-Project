@@ -88,6 +88,13 @@ def add_customer():
     execute_query(conn, query, values)
     return make_response(jsonify({"message": "Customer added successfully"}), 200)
 
+# Shows all customers in the database
+@app.route('/api/customers/inventory', methods=['GET'])
+def list_customers():
+    query = "SELECT * FROM customers"
+    customers = execute_read_query(conn, query)
+    return jsonify(customers)
+
 
 
 app.run()
