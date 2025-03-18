@@ -9,42 +9,27 @@ from sql import create_connection, execute_query, execute_read_query
 myCreds = creds.creds()
 conn = create_connection(myCreds.constring, myCreds.user, myCreds.password, myCreds.database)
 
+# setting up an application name
+app = flask.Flask(__name__) # sets up the app
+app.config["DEBUG"] = True # allow to show errors in the browser
 
-create_books_table = """
-CREATE TABLE IF NOT EXISTS books (
-    id INT AUTO_INCREMENT,
-    title VARCHAR(255) NOT NULL,
-    author VARCHAR(255) NOT NULL,
-    genre VARCHAR(100) NOT NULL,
-    status VARCHAR(20) DEFAULT 'available',
-    PRIMARY KEY (id)
-)
-"""
-execute_query(conn, create_books_table)
 
-create_customers_table = """
-CREATE TABLE IF NOT EXISTS customers (
-    id INT AUTO_INCREMENT,
-    firstname VARCHAR(100) NOT NULL,
-    lastname VARCHAR(100) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    passwordhash CHAR(64) NOT NULL,
-    PRIMARY KEY (id)
-)
-"""
-execute_query(conn, create_customers_table)
+# Add a new book to the database
+@app.route('/api/books/add', methods=['POST'])
+def add_book():
+    new_book = request.get_json()
+    query = """
+    INSERT INTO books (title, author, genre, status)
+    VALUES (%s, %s, %s, %s)
+    """
+    values = (
+        new_book['title'],
+        new_book['author'],
+        new_book['genre'],
+        new_book.get('status', 'available')  # defaults to 'available' if not provided
+    )
+    execute_query(conn, query, values)
+    return make_response(jsonify({"message": "Book added successfully"}), 200)
 
-create_borrowingrecords_table = """
-CREATE TABLE IF NOT EXISTS borrowingrecords (
-    id INT AUTO_INCREMENT,
-    bookid INT NOT NULL,
-    customerid INT NOT NULL,
-    borrowdate DATE NOT NULL,
-    returndate DATE,
-    late_fee INT DEFAULT 0,
-    FOREIGN KEY (bookid) REFERENCES books(id),
-    FOREIGN KEY (customerid) REFERENCES customers(id),
-    PRIMARY KEY (id)
-)
-"""
-execute_query(conn, create_borrowingrecords_table)
+
+app.run()
